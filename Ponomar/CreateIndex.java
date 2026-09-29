@@ -17,11 +17,12 @@ public final class CreateIndex {
         JDate date = new JDate(9, 1, year);
         for (int offset = 0; offset < 365; offset++, date.addDays(1)) {
             for (MenologionReader.Saint saint : MenologionReader.saints(date)) {
-                add(entries, saint, date);
-                if (!saint.sIds().equals(saint.cId()) && !(saint.sIds().matches("\\d+")
-                        && Integer.parseInt(saint.sIds()) < 10)) {
+                if (!saint.sIds().equals(saint.cId())) {
+                    if (saint.sIds().matches("\\d+") && Integer.parseInt(saint.sIds()) < 10) continue;
                     for (String id : saint.sIds().split(","))
                         add(entries, MenologionReader.readLife(id.trim(), id.trim(), saint.source()), date);
+                } else {
+                    add(entries, saint, date);
                 }
             }
         }
@@ -53,6 +54,8 @@ public final class CreateIndex {
                 for (JDate date : saint.getValue().dates) html.append("<A Href=\"http://www.ponomar.net/cgi-bin/menologion.cgi?month=")
                     .append(date.getMonth()).append("&day=").append(date.getDay()).append("&year=").append(year)
                     .append("\">").append(MONTHS[date.getMonth() - 1]).append(' ').append(date.getDay()).append("</A> ");
+                // Deliberately close each saint row here; the Perl generator closed once per
+                // name group and produced malformed HTML when multiple saints shared a name.
                 html.append("</TD></TR>\n");
             }
         });

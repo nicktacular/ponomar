@@ -23,16 +23,24 @@ public final class CreateTables {
         Files.write(output, lines, StandardCharsets.UTF_8);
     }
 
-    private static List<MenologionReader.Saint> expanded(List<MenologionReader.Saint> saints) throws Exception {
+    static List<MenologionReader.Saint> expanded(List<MenologionReader.Saint> saints) throws Exception {
+        return expanded(saints, id -> MenologionReader.readLife(id, id, ""));
+    }
+
+    static List<MenologionReader.Saint> expanded(List<MenologionReader.Saint> saints,
+            SaintLoader loader) throws Exception {
         List<MenologionReader.Saint> result = new ArrayList<>(saints);
-        for (MenologionReader.Saint saint : saints) {
+        for (int index = 0; index < result.size(); index++) {
+            MenologionReader.Saint saint = result.get(index);
             if (!saint.sIds().equals(saint.cId()) && !(saint.sIds().matches("\\d+")
                     && Integer.parseInt(saint.sIds()) < 10)) {
-                for (String id : saint.sIds().split(",")) result.add(MenologionReader.readLife(id.trim(), id.trim(), ""));
+                for (String id : saint.sIds().split(",")) result.add(loader.load(id.trim()));
             }
         }
         return result;
     }
+
+    interface SaintLoader { MenologionReader.Saint load(String id) throws Exception; }
 
     private static void append(List<String> output, String id, String tag, Map<String, String> values) {
         values.forEach((key, value) -> output.add(String.join("\t", id, tag, key, value)));

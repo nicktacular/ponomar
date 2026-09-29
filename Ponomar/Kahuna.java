@@ -11,9 +11,11 @@ public final class Kahuna {
     private Kahuna() {}
 
     public static void main(String[] args) throws Exception {
-        Path input = args.length > 0 ? Path.of(args[0]) : Path.of("Ponomar/scripts/Perl/data");
-        Path output = args.length > 1 ? Path.of(args[1]) : Path.of("Ponomar/languages/xml/lives");
-        update(input, output);
+        if (args.length != 2) {
+            throw new IllegalArgumentException(
+                "Usage: Kahuna <input-data-directory> <output-lives-directory>");
+        }
+        update(Path.of(args[0]), Path.of(args[1]));
     }
 
     public static void update(Path input, Path output) throws IOException {
@@ -55,8 +57,11 @@ public final class Kahuna {
                 String[] values = line.split("\t", -1);
                 if (values.length < 7 || values[5].isEmpty() || values[6].isEmpty()) continue;
                 int cycleDay = Integer.parseInt(values[3]) + 1;
-                result.computeIfAbsent(cycleDay, ignored -> new ArrayList<>()).add(new Cell(
-                    Integer.parseInt(values[2]), Integer.parseInt(values[4]), values[5], values[6]));
+                Cell cell = new Cell(Integer.parseInt(values[2]), Integer.parseInt(values[4]), values[5], values[6]);
+                List<Cell> cells = result.computeIfAbsent(cycleDay, ignored -> new ArrayList<>());
+                // The Perl hash used (cycle day, day of year, distance to next Pascha) as its key.
+                cells.removeIf(existing -> existing.doy == cell.doy && existing.ndayF == cell.ndayF);
+                cells.add(cell);
             }
         }
         return result;
