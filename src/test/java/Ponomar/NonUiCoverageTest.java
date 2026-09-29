@@ -5,13 +5,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class NonUiCoverageTest {
+    @AfterEach void restoreSunriseLanguageState() {
+        new Sunrise(DayInfoFixtures.englishDayInfo());
+    }
+
     @Test void formatsJulianAndGregorianDatesInLocalizedText() {
         JDate julian = new JDate(1, 1, 2024);
-        OrderedHashtable english = TestData.englishDayInfo(julian);
+        OrderedHashtable english = DayInfoFixtures.englishDayInfo(julian);
         assertEquals("Sunday, 1 January A.D. 2024", julian.toString(english));
         assertEquals("Sunday, 14 January A.D. 2024", julian.getGregorianDateS(english));
 
@@ -22,14 +27,14 @@ class NonUiCoverageTest {
             () -> assertEquals(Calendar.JANUARY, utc.get(Calendar.MONTH)),
             () -> assertEquals(14, utc.get(Calendar.DAY_OF_MONTH)));
 
-        OrderedHashtable chinese = TestData.englishDayInfo(julian);
+        OrderedHashtable chinese = DayInfoFixtures.englishDayInfo(julian);
         chinese.put("LS", "zh/Hans/"); chinese.put("Ideographic", "1");
         assertAll(() -> assertTrue(julian.toString(chinese).contains("二〇二四")),
             () -> assertTrue(julian.getGregorianDateS(chinese).contains("十四")));
     }
 
     @Test void convertsHistoricalCalendarDatesAndAnnoMundiBoundaries() {
-        OrderedHashtable info = TestData.englishStringDayInfo(new JDate(10, 4, 1582));
+        OrderedHashtable info = DayInfoFixtures.englishStringDayInfo(new JDate(10, 4, 1582));
         PCalendar beforeReform = new PCalendar(new JDate(10, 4, 1582), PCalendar.gregorian, info);
         assertEquals(beforeReform.getJulianDay(),
             new PCalendar(new JDate(10, 4, 1582), PCalendar.julian, info).getJulianDay());
@@ -42,7 +47,7 @@ class NonUiCoverageTest {
     }
 
     @Test void exercisesAllAstronomicalMoonPhaseLabelsAndPolarSunBranches() {
-        OrderedHashtable info = TestData.englishDayInfo();
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
         Astronomy astronomy = new Astronomy();
         Set<String> expected = new HashSet<>(Arrays.asList(
             new LanguagePack(info).obtainValues(new LanguagePack(info).Phrases.get("Phases").toString())));
@@ -68,14 +73,14 @@ class NonUiCoverageTest {
     }
 
     @Test void appliesRomanNumberRulesAcrossSubtractiveAndRepeatCases() {
-        RuleBasedNumber roman = new RuleBasedNumber(TestData.englishDayInfo());
+        RuleBasedNumber roman = new RuleBasedNumber(DayInfoFixtures.englishDayInfo());
         Map<Integer, String> romans = Map.of(3, "III", 8, "VIII", 14, "XIV", 49, "XLIX",
             944, "CMXLIV", 3999, "MMMCMXCIX", 4999, "MMMMCMXCIX");
         romans.forEach((number, expected) -> assertEquals(expected, roman.getFormattedNumber(number)));
     }
 
     @Test void appliesChineseConditionalAndRecursiveNumberRules() {
-        OrderedHashtable chineseInfo = TestData.englishDayInfo(); chineseInfo.put("LS", "zh/Hans/");
+        OrderedHashtable chineseInfo = DayInfoFixtures.englishDayInfo(); chineseInfo.put("LS", "zh/Hans/");
         RuleBasedNumber chinese = new RuleBasedNumber(chineseInfo);
         assertAll(() -> assertEquals("〇", chinese.getFormattedNumber(0)),
             () -> assertEquals("十", chinese.getFormattedNumber(10)),
@@ -85,9 +90,9 @@ class NonUiCoverageTest {
     }
 
     @Test void appliesGreekAndChurchSlavonicFinalFormattingRules() {
-        OrderedHashtable greekInfo = TestData.englishDayInfo(); greekInfo.put("LS", "el/");
+        OrderedHashtable greekInfo = DayInfoFixtures.englishDayInfo(); greekInfo.put("LS", "el/");
         assertEquals("μβʹ", new RuleBasedNumber(greekInfo).getFormattedNumber(42));
-        OrderedHashtable slavonicInfo = TestData.englishDayInfo(); slavonicInfo.put("LS", "cu/");
+        OrderedHashtable slavonicInfo = DayInfoFixtures.englishDayInfo(); slavonicInfo.put("LS", "cu/");
         String twelve = new RuleBasedNumber(slavonicInfo).getFormattedNumber(12);
         assertAll(() -> assertTrue(twelve.contains("в")), () -> assertTrue(twelve.contains("і")),
             () -> assertTrue(twelve.contains("҃")));
@@ -100,6 +105,8 @@ class NonUiCoverageTest {
         assertTrue(html.startsWith("\n<HTML>"));
         assertTrue(html.contains("Index of Saints"));
         assertTrue(html.contains("Beginning of the Indiction"));
+        assertFalse(html.contains("lives.cgi?id=1428\""), "composite commemorations are expanded, not indexed");
+        assertTrue(html.contains("lives.cgi?id=14280\""), "expanded sub-saints are indexed");
         assertTrue(html.endsWith("</HTML>"));
     }
 

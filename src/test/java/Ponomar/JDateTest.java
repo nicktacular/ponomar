@@ -10,8 +10,9 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class JDateTest {
+    // JDate initializes its static localized error strings only while formatting a date.
     @BeforeAll static void initializeLocalizedErrors() {
-        new JDate(1, 1, 2024).getGregorianDateS(TestData.englishDayInfo());
+        new JDate(1, 1, 2024).getGregorianDateS(DayInfoFixtures.englishDayInfo());
     }
 
     static Stream<Arguments> roundTripDates() {

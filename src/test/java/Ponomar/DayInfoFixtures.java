@@ -1,7 +1,8 @@
 package Ponomar;
 
-final class TestData {
-    private TestData() {}
+/** Fresh per-test day-information maps for headless production code. */
+final class DayInfoFixtures {
+    private DayInfoFixtures() {}
 
     static OrderedHashtable englishDayInfo() {
         OrderedHashtable info = new OrderedHashtable();

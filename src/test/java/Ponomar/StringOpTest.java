@@ -52,6 +52,12 @@ class StringOpTest {
         assertTrue(missingBracket.getMessage().contains("Not Enough Brackets"));
     }
 
+    @Test void booleanOperatorsShortCircuitUnknownRightHandVariables() {
+        StringOp evaluator = new StringOp();
+        assertFalse(evaluator.evalbool("false && Missing"));
+        assertTrue(evaluator.evalbool("true || Missing"));
+    }
+
     @Test void cloneIsolatesItsVariableTable() {
         StringOp original = new StringOp(); original.dayInfo.put("value", "10");
         StringOp clone = original.clone(); clone.dayInfo.put("value", "20"); clone.dayInfo.put("extra", "5");

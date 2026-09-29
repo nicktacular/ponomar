@@ -6,13 +6,18 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class NonUiServiceTest {
+    @AfterEach void clearSharedUsualBeginningOutput() {
+        UsualBeginning.UsualBeginning1 = null;
+    }
+
     @Test void assemblesUsualBeginningForPriestAndReaderServices() {
         for (int priest : List.of(0, 1)) {
-            OrderedHashtable info = TestData.englishStringDayInfo(new JDate(6, 1, 2024));
+            OrderedHashtable info = DayInfoFixtures.englishStringDayInfo(new JDate(6, 1, 2024));
             info.put("PS", Integer.toString(priest));
             Service service = new Service(info);
             String html = service.startService("xml/Services/UsualBeginning.xml");
@@ -24,13 +29,13 @@ class NonUiServiceTest {
     }
 
     @Test void usualBeginningConvenienceApiShouldReturnTheServiceText() {
-        OrderedHashtable info = TestData.englishStringDayInfo(new JDate(6, 1, 2024));
+        OrderedHashtable info = DayInfoFixtures.englishStringDayInfo(new JDate(6, 1, 2024));
         UsualBeginning beginning = new UsualBeginning(info);
         assertTrue(beginning.getUsualBeginning().length() > 500);
     }
 
     @Test void readsLocalizedServiceTextAndHeaders() {
-        OrderedHashtable info = TestData.englishDayInfo();
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
         ReadText reader = new ReadText(info);
         String text = reader.readText("xml/Services/CommonPrayers/Amen.xml");
         assertNotNull(text);
@@ -40,7 +45,7 @@ class NonUiServiceTest {
     }
 
     @Test void oldCommemorationReaderAndQuasiCommemorationExposeMetadata() {
-        OrderedHashtable greek = TestData.englishDayInfo(); greek.put("LS", "el/");
+        OrderedHashtable greek = DayInfoFixtures.englishDayInfo(); greek.put("LS", "el/");
         Commemoration commemoration = new Commemoration("B_163", greek);
         assertEquals("B_163", commemoration.getID());
         OrderedHashtable troparion = commemoration.getService("/TROPARION", "1");
@@ -57,7 +62,7 @@ class NonUiServiceTest {
     }
 
     @Test void legacyCommemorationShouldAcceptNonNumericIds() {
-        OrderedHashtable greek = TestData.englishDayInfo(); greek.put("LS", "el/");
+        OrderedHashtable greek = DayInfoFixtures.englishDayInfo(); greek.put("LS", "el/");
         Commemoration commemoration = new Commemoration("B_163", greek);
         assertDoesNotThrow(() -> assertNotNull(commemoration.getGrammar("")));
     }
@@ -102,5 +107,53 @@ class NonUiServiceTest {
         assertTrue(html.contains("ColSpan=\"2\">Nicholas"));
         assertTrue(html.contains("December 6"));
         assertTrue(html.contains("May 9"));
+    }
+
+    @Test void headlessReadingClassifiersSeparateAndSuppressReadingsWithoutFormattingUi() {
+        OrderedHashtable liturgyInfo = DayInfoFixtures.englishDayInfo();
+        liturgyInfo.put("dow", "1"); liturgyInfo.put("doy", "100"); liturgyInfo.put("dRank", "5");
+        liturgyInfo.put("nday", "20"); liturgyInfo.put("ndayP", "380"); liturgyInfo.put("ndayF", "-330");
+        DivineLiturgy1 liturgy = new DivineLiturgy1(liturgyInfo);
+        DivineLiturgy1.classifyReadings liturgyReadings =
+            liturgy.new classifyReadings(readingInput(), liturgyInfo);
+        assertAll(
+            () -> assertTrue(liturgyReadings.dailyV.isEmpty()),
+            () -> assertEquals(List.of("Sequential"), liturgyReadings.suppressedV),
+            () -> assertEquals(List.of(-2), liturgyReadings.suppressedR),
+            () -> assertEquals(List.of("Daily"), liturgyReadings.suppressedT),
+            () -> assertEquals(List.of("Feast"), liturgyReadings.menaionV));
+
+        OrderedHashtable matinsInfo = DayInfoFixtures.englishDayInfo();
+        matinsInfo.put("dow", "0"); matinsInfo.put("dRank", "7"); matinsInfo.put("nday", "20");
+        Matins matins = new Matins(matinsInfo);
+        Matins.classifyReadings matinsReadings = matins.new classifyReadings(readingInput());
+        assertAll(
+            () -> assertTrue(matinsReadings.dailyV.isEmpty()),
+            () -> assertEquals(List.of("Sequential"), matinsReadings.suppressedV),
+            () -> assertEquals(List.of("Feast"), matinsReadings.menaionV));
+    }
+
+    @Test void matinsLowRankSundaySuppressionShouldKeepVectorsAligned() {
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
+        info.put("dow", "0"); info.put("dRank", "5"); info.put("nday", "20");
+        Matins matins = new Matins(info);
+
+        Matins.classifyReadings readings = matins.new classifyReadings(readingInput());
+
+        assertAll(
+            () -> assertEquals(List.of("Feast"), readings.suppressedV),
+            () -> assertEquals(List.of(8), readings.suppressedR),
+            () -> assertEquals(List.of("Feast day"), readings.suppressedT),
+            () -> assertTrue(readings.menaionV.isEmpty()),
+            () -> assertTrue(readings.menaionR.isEmpty()),
+            () -> assertTrue(readings.menaionT.isEmpty()));
+    }
+
+    private static OrderedHashtable readingInput() {
+        OrderedHashtable input = new OrderedHashtable();
+        input.put("Readings", new Vector<>(List.of("Sequential", "Feast")));
+        input.put("Rank", new Vector<>(List.of(-2, 8)));
+        input.put("Tag", new Vector<>(List.of("Daily", "Feast day")));
+        return input;
     }
 }

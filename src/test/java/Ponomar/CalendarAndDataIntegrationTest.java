@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 class CalendarAndDataIntegrationTest {
     @Test void convertsBetweenJulianAndGregorianCalendars() {
-        OrderedHashtable info = TestData.englishDayInfo();
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
         PCalendar julian = new PCalendar(new JDate(1, 14, 2012), PCalendar.julian, info);
         PCalendar gregorian = new PCalendar(new JDate(1, 14, 2012), PCalendar.gregorian, info);
         assertEquals(13.0, julian.getJulianDay() - gregorian.getJulianDay());
@@ -24,7 +24,7 @@ class CalendarAndDataIntegrationTest {
 
     @Test void computesSunriseSunsetAndLunarPhaseStrings() {
         JDate date = new JDate(6, 1, 2024);
-        OrderedHashtable info = TestData.englishDayInfo(date);
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo(date);
         new Sunrise(info);
         double[] standard = Sunrise.getSunriseSunset(date, -74.0, 40.7, -5);
         double[] daylight = Sunrise.getSunriseSunset(date, -74.0, 40.7, -5, true);
@@ -42,7 +42,7 @@ class CalendarAndDataIntegrationTest {
 
     @Test void loadsACompleteMenaionDayAndItsCommemorations() {
         JDate date = new JDate(9, 1, 2015);
-        OrderedHashtable info = TestData.englishDayInfo(date);
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo(date);
         Day day = new Day("xml/09/01", info);
         assertTrue(day.getDayRank() >= 0);
         assertEquals(-1, day.getTone());
@@ -53,7 +53,7 @@ class CalendarAndDataIntegrationTest {
     }
 
     @Test void loadsCommemorationMetadataServicesLifeAndIcons() {
-        OrderedHashtable info = TestData.englishDayInfo(new JDate(9, 1, 2015));
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo(new JDate(9, 1, 2015));
         Commemoration1 commemoration = new Commemoration1("09426", "09426", info);
         assertEquals("09426", commemoration.getSId());
         assertEquals("09426", commemoration.getCId());
@@ -72,7 +72,7 @@ class CalendarAndDataIntegrationTest {
     }
 
     @Test void formatsEveryPredefinedAndGenericFastingRule() {
-        Fasting fasting = new Fasting(TestData.englishDayInfo(new JDate(3, 4, 2024)));
+        Fasting fasting = new Fasting(DayInfoFixtures.englishDayInfo(new JDate(3, 4, 2024)));
         for (String rule : List.of("0000000", "0000001", "0000011", "0000111", "0001111",
                 "0011111", "0111111", "1111111", "0000010", "1010101")) {
             assertNotNull(fasting.convert(rule));
@@ -82,22 +82,27 @@ class CalendarAndDataIntegrationTest {
     }
 
     @Test void configurationAndHandlerCallbacksPopulateState() {
-        ConfigurationFiles.Defaults = new OrderedHashtable();
-        ConfigurationFiles.ReadFile();
-        assertFalse(ConfigurationFiles.Defaults.isEmpty());
-        ConfigurationFiles config = new ConfigurationFiles();
-        Hashtable attrs = new Hashtable(); attrs.put("Example", "value");
-        config.startDocument(); config.startElement("DEFAULT", attrs); config.endElement("DEFAULT"); config.text(""); config.endDocument();
-        assertEquals("value", ConfigurationFiles.Defaults.get("Example"));
+        OrderedHashtable originalDefaults = ConfigurationFiles.Defaults;
+        try {
+            ConfigurationFiles.Defaults = new OrderedHashtable();
+            ConfigurationFiles.ReadFile();
+            assertFalse(ConfigurationFiles.Defaults.isEmpty());
+            ConfigurationFiles config = new ConfigurationFiles();
+            Hashtable attrs = new Hashtable(); attrs.put("Example", "value");
+            config.startDocument(); config.startElement("DEFAULT", attrs); config.endElement("DEFAULT"); config.text(""); config.endDocument();
+            assertEquals("value", ConfigurationFiles.Defaults.get("Example"));
+        } finally {
+            ConfigurationFiles.Defaults = originalDefaults;
+        }
 
-        LanguagePack pack = new LanguagePack(TestData.englishDayInfo());
+        LanguagePack pack = new LanguagePack(DayInfoFixtures.englishDayInfo());
         Hashtable phrase = new Hashtable(); phrase.put("Key", "Synthetic"); phrase.put("Value", "yes");
         pack.startDocument(); pack.startElement("PHRASE", phrase); pack.endElement("LANGUAGE"); pack.text(""); pack.endDocument();
         assertEquals("yes", pack.Phrases.get("Synthetic"));
     }
 
     @Test void serviceRuleHandlersSelectMatchingRules() {
-        OrderedHashtable info = TestData.englishDayInfo(new JDate(4, 22, 2024));
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo(new JDate(4, 22, 2024));
         ServiceInfo service = new ServiceInfo("LITURGY", info);
         service.ServiceRules();
         service.startDocument();
@@ -113,7 +118,7 @@ class CalendarAndDataIntegrationTest {
     }
 
     @Test void serviceRuleLoaderShouldReturnRules() {
-        ServiceInfo service = new ServiceInfo("LITURGY", TestData.englishDayInfo(new JDate(4, 22, 2024)));
+        ServiceInfo service = new ServiceInfo("LITURGY", DayInfoFixtures.englishDayInfo(new JDate(4, 22, 2024)));
         assertNotNull(service.ServiceRules());
     }
 }

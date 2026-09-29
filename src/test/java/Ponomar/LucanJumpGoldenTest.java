@@ -8,6 +8,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 class LucanJumpGoldenTest {
@@ -19,6 +20,11 @@ class LucanJumpGoldenTest {
     };
     private static final String[] LETTERS =
         "А Б В Г Д Е Ж Ѕ З И І К Л М Н О П Р С Т Ꙋ Ф Х Ѿ Ц Ч Ш Щ Ъ Ы Ь Ѣ Ю Ѫ Ѧ".split(" ");
+    // Saturday/Sunday overrides around Elevation, Nativity, and Theophany. The
+    // production XML models these fixed-feast cycles; the Kahuna TSVs do not.
+    private static final Set<String> FIXED_FEAST_OVERRIDES = Set.of(
+        "SAE", "SAN", "SAT", "SBE", "SBN", "SBT",
+        "SatAE", "SatAN", "SatAT", "SatBE", "SatBT");
     private static final Map<Integer, List<ReadingRule>> RULE_CACHE = new HashMap<>();
 
     @TestFactory Stream<DynamicTest> matchesAll65LucanJumpGoldenFiles() {
@@ -31,6 +37,89 @@ class LucanJumpGoldenTest {
                     assertEquals(expected.get(line), actual.get(line), "line " + (line + 1));
                 }
             }));
+    }
+
+    @Test void productionSelectionMatchesGoldenAcrossEveryLucanDate() throws Exception {
+        int datesVisited = 0;
+        int datesCompared = 0;
+        int comparisons = 0;
+        int discriminatingDates = 0;
+        Set<Integer> cycleFiles = new HashSet<>();
+        Set<Integer> discriminatingFiles = new HashSet<>();
+        Set<String> encounteredOverrides = new HashSet<>();
+        List<String> unknownOverrides = new ArrayList<>();
+        List<String> mismatches = new ArrayList<>();
+
+        for (int year : YEARS) {
+            JDate pascha = Paschalion.getPascha(year);
+            JDate nextPascha = Paschalion.getPascha(year + 1);
+            JDate date = (JDate) pascha.clone();
+            date.addDays(134);
+            JDate end = (JDate) nextPascha.clone();
+            end.subtractDays(70);
+
+            while (date.compareTo(end) < 0) {
+                int cycleDay = (int) JDate.difference(date, pascha) + 1;
+                OrderedHashtable dayInfo = DayInfoFixtures.englishDayInfo(date);
+                List<ReadingRule> expectedRules = rules(cycleDay);
+                boolean discriminating = hasMultiplePossibleWeeks(expectedRules);
+                Map<String, String> productionWeeks = productionEffectiveWeeks(
+                    new Day("xml/pentecostarion/" + cycleDay, dayInfo));
+                boolean skippedForFixedFeast = false;
+
+                for (String type : List.of("apostol", "gospel")) {
+                    String expected = effectiveWeek(expectedRules, type, dayInfo);
+                    String actual = productionWeeks.getOrDefault(type, "");
+                    String context = "year=" + year + ", date=" + date.getMonth() + "/" + date.getDay()
+                        + ", cycleDay=" + cycleDay + ", type=" + type;
+                    if (!actual.isEmpty() && !actual.matches("\\d+")) {
+                        skippedForFixedFeast = true;
+                        if (FIXED_FEAST_OVERRIDES.contains(actual)) encounteredOverrides.add(actual);
+                        else if (unknownOverrides.size() < 25) unknownOverrides.add(actual + " (" + context + ")");
+                        continue;
+                    }
+                    comparisons++;
+                    if (!Objects.equals(expected, actual) && mismatches.size() < 25) {
+                        mismatches.add(context + ", expected=" + expected + ", actual=" + actual);
+                    }
+                }
+
+                datesVisited++;
+                cycleFiles.add(cycleDay);
+                if (discriminating) discriminatingFiles.add(cycleDay);
+                if (!skippedForFixedFeast) {
+                    datesCompared++;
+                    if (discriminating) discriminatingDates++;
+                }
+                date.addDays(1);
+            }
+        }
+
+        assertTrue(datesVisited > 10_000, "the full 65-year range must be exercised");
+        assertTrue(datesCompared > 9_000, "too many production dates were skipped");
+        assertTrue(comparisons > 18_000, "both reading types must be compared across the range");
+        assertTrue(cycleFiles.size() >= 180, "too few distinct cycle files were loaded");
+        assertTrue(discriminatingFiles.size() >= 150, "too few files offered multiple possible weeks");
+        assertTrue(discriminatingDates > 8_000, "too few comparisons could detect wrong rule selection");
+        assertEquals(FIXED_FEAST_OVERRIDES, encounteredOverrides,
+            "the fixed-feast override inventory changed");
+        assertTrue(unknownOverrides.isEmpty(), () -> "unknown overrides: " + unknownOverrides);
+        assertTrue(mismatches.isEmpty(), () -> "production selection mismatches: " + mismatches);
+    }
+
+    private static Map<String, String> productionEffectiveWeeks(Day day) {
+        Map<String, String> selected = new HashMap<>();
+        for (OrderedHashtable wrapper : day.getReadings()) {
+            OrderedHashtable information = (OrderedHashtable) wrapper.get("Readings");
+            OrderedHashtable readings = (OrderedHashtable) information.get("Readings");
+            OrderedHashtable liturgy = (OrderedHashtable) readings.get("LITURGY");
+            if (liturgy == null) continue;
+            for (String type : List.of("apostol", "gospel")) {
+                if (liturgy.get(type) != null) selected.putIfAbsent(type,
+                    ((OrderedHashtable) liturgy.get(type)).get("EffWeek").toString());
+            }
+        }
+        return selected;
     }
 
     private static List<String> generate(int year) throws Exception {
@@ -54,7 +143,7 @@ class LucanJumpGoldenTest {
         while (date.compareTo(end) < 0) {
             int nday = (int) JDate.difference(date, pascha);
             int untilNext = (int) JDate.difference(nextPascha, date);
-            OrderedHashtable dayInfo = TestData.englishDayInfo();
+            OrderedHashtable dayInfo = DayInfoFixtures.englishDayInfo();
             dayInfo.put("doy", Integer.toString(date.getDoy()));
             dayInfo.put("dow", Integer.toString(date.getDayOfWeek()));
             int calendarYear = date.getYear();
@@ -62,7 +151,9 @@ class LucanJumpGoldenTest {
             dayInfo.put("ndayP", Long.toString(JDate.difference(date, Paschalion.getPascha(calendarYear - 1))));
             dayInfo.put("ndayF", Long.toString(JDate.difference(date, Paschalion.getPascha(calendarYear + 1))));
 
-            List<ReadingRule> rules = rules(nday + 1);
+            // The legacy fixture's Pascha-relative day zero maps to Pentecostarion life 91.xml.
+            int cycleDay = nday + 1;
+            List<ReadingRule> rules = rules(cycleDay);
             String apostol = effectiveWeek(rules, "apostol", dayInfo);
             String gospel = effectiveWeek(rules, "gospel", dayInfo);
             String row = String.join("\t", Integer.toString(date.getMonth()), Integer.toString(date.getDay()),
@@ -72,6 +163,15 @@ class LucanJumpGoldenTest {
             date.addDays(1);
         }
         return lines;
+    }
+
+    private static boolean hasMultiplePossibleWeeks(List<ReadingRule> rules) {
+        for (String type : List.of("apostol", "gospel")) {
+            long count = rules.stream().filter(rule -> type.equals(rule.type))
+                .map(ReadingRule::effectiveWeek).filter(Objects::nonNull).distinct().count();
+            if (count > 1) return true;
+        }
+        return false;
     }
 
     private static String effectiveWeek(List<ReadingRule> rules, String type, OrderedHashtable dayInfo) {
@@ -92,13 +192,15 @@ class LucanJumpGoldenTest {
         List<ReadingRule> parsed = new ArrayList<>();
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             QDParser.parse(new DocHandler() {
+                private final Deque<String> parents = new ArrayDeque<>();
                 public void startDocument() {}
                 public void endDocument() {}
-                public void endElement(String tag) {}
+                public void endElement(String tag) { parents.pop(); }
                 public void text(String text) {}
                 public void startElement(String tag, Hashtable attrs) {
-                    if ("SCRIPTURE".equals(tag)) parsed.add(new ReadingRule(
+                    if ("SCRIPTURE".equals(tag) && "LITURGY".equals(parents.peek())) parsed.add(new ReadingRule(
                         string(attrs.get("Type")), string(attrs.get("EffWeek")), string(attrs.get("Cmd"))));
+                    parents.push(tag);
                 }
             }, reader);
         }

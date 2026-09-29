@@ -2,6 +2,7 @@ package Ponomar;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.awt.ComponentOrientation;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,21 @@ class OrderedHashtableTest {
         assertFalse(table.containsKey("first"));
     }
 
+    @Test void putAllFromOrderedMapPreservesItsIterationOrder() {
+        OrderedHashtable destination = new OrderedHashtable();
+        destination.put("existing", "old");
+        destination.put("first", "one");
+        OrderedHashtable additions = new OrderedHashtable();
+        additions.put("existing", "new");
+        additions.put("third", "three");
+        additions.put("second", "two");
+
+        destination.putAll(additions);
+
+        assertEquals("new", destination.get("existing"));
+        assertEquals(List.of("existing", "first", "third", "second"), keys(destination));
+    }
+
     @Test void iteratorRejectsReadsPastEnd() {
         OrderedHashtable table = new OrderedHashtable();
         table.put("only", "value");
@@ -83,6 +99,21 @@ class OrderedHashtableTest {
         assertFalse(original.containsKey("extra"));
         assertEquals(List.of("name", "year"), keys(original));
         assertEquals(List.of("name", "year", "extra"), keys(clone));
+    }
+
+    @Test void clonePreservesLocaleAndComponentOrientationObjects() {
+        OrderedHashtable original = new OrderedHashtable();
+        original.put("Locale", Locale.CANADA_FRENCH);
+        original.put("Orient", ComponentOrientation.RIGHT_TO_LEFT);
+        OrderedHashtable clone = original.clone();
+        assertSame(Locale.CANADA_FRENCH, clone.get("Locale"));
+        assertSame(ComponentOrientation.RIGHT_TO_LEFT, clone.get("Orient"));
+    }
+
+    @Test void valuesIteratorExplicitlyRejectsRemoval() {
+        Iterator values = table().values().iterator();
+        assertEquals("one", values.next());
+        assertThrows(UnsupportedOperationException.class, values::remove);
     }
 
     private static OrderedHashtable table() {

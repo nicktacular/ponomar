@@ -62,10 +62,44 @@ class PaschalionTest {
     }
 
     @Test void buildsFeastTable() {
-        OrderedHashtable info = TestData.englishDayInfo();
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
         Hashtable feasts = Paschalion.getFeasts(2024, info);
         assertFalse(feasts.isEmpty());
         assertTrue(feasts.containsKey(Paschalion.getPascha(2024).getJulianDay()));
+    }
+
+    @Test void combinesAnnunciationAndPaschaForKyriopascha() {
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
+        Hashtable feasts = Paschalion.getFeasts(1912, info);
+        JDate kyriopascha = new JDate(3, 25, 1912);
+        assertEquals(kyriopascha.getJulianDay(), Paschalion.getPascha(1912).getJulianDay());
+        assertEquals("Kyriopascha: Pascha and Annunciation", feasts.get(kyriopascha.getJulianDay()));
+    }
+
+    @Test void transfersMeetingOfTheLordBeforeLentWhenNecessary() {
+        OrderedHashtable info = DayInfoFixtures.englishDayInfo();
+        Hashtable feasts = Paschalion.getFeasts(2010, info);
+        assertEquals(48L, JDate.difference(Paschalion.getPascha(2010), new JDate(2, 2, 2010)));
+        assertEquals("Meeting of the Lord", feasts.get(new JDate(2, 1, 2010).getJulianDay()));
+        assertFalse(feasts.containsKey(new JDate(2, 2, 2010).getJulianDay()));
+    }
+
+    @Test void classifiesEveryAnnualFastingSeason() {
+        int year = 2024;
+        int[] fasts = Paschalion.getFasts(year);
+        JDate pascha = Paschalion.getPascha(year);
+        assertAll(
+            () -> assertEquals(0, fasts[indexOf(12, 26, year)], "Sviatki"),
+            () -> assertEquals(0, fasts[indexFromPascha(pascha, -66, year)], "Publican and Pharisee"),
+            () -> assertEquals(2, fasts[indexFromPascha(pascha, -52, year)], "Cheesefare"),
+            () -> assertEquals(1, fasts[indexFromPascha(pascha, -20, year)], "Lent"),
+            () -> assertEquals(0, fasts[indexFromPascha(pascha, 3, year)], "Bright Week"),
+            () -> assertEquals(0, fasts[indexFromPascha(pascha, 52, year)], "Pentecost week"),
+            () -> assertEquals(1, fasts[indexFromPascha(pascha, 60, year)], "Apostles' Fast"),
+            () -> assertEquals(1, fasts[indexOf(8, 7, year)], "Dormition Fast"),
+            () -> assertEquals(1, fasts[indexOf(12, 18, year)], "Advent"),
+            () -> assertEquals(1, fasts[indexOf(7, 4, year)], "ordinary Wednesday"),
+            () -> assertEquals(0, fasts[indexOf(7, 5, year)], "ordinary Thursday"));
     }
 
     @Test void rejectsYearsBeforeAd33() {
@@ -86,5 +120,11 @@ class PaschalionTest {
 
     private static int indexOf(int month, int day, int year) {
         return (int) JDate.difference(new JDate(month, day, year), new JDate(1, 1, year));
+    }
+
+    private static int indexFromPascha(JDate pascha, int offset, int year) {
+        JDate date = (JDate) pascha.clone();
+        date.addDays(offset);
+        return (int) JDate.difference(date, new JDate(1, 1, year));
     }
 }
